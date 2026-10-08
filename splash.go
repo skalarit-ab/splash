@@ -108,8 +108,9 @@ var (
 	// fadeAway fades the intro at its end, and skipFade on a skip.
 	fadeAway = anim.Tween{Duration: 320 * time.Millisecond, Ease: anim.EaseInOut}
 	skipFade = anim.Tween{Duration: 200 * time.Millisecond, Ease: anim.EaseOut}
-	// soundStop is how quickly the sting fades on a skip.
-	soundStop = 120 * time.Millisecond
+	// soundStop is how quickly the sting fades on a skip: as quickly
+	// as the picture.
+	soundStop = 200 * time.Millisecond
 )
 
 // Length is how long the intro plays when nothing skips it, from its

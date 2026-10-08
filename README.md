@@ -20,8 +20,11 @@ fades away over the app's first screen. It is gone at 1.62 seconds.
 
 The sting follows the logo, in E major: a soft pop rising into B4 as the
 diamond lands, a mallet note from the left and one from the right as
-the wedges open, and two bells as the glow swells. It lasts 0.9 seconds
-and peaks at -11 dBFS.
+the wedges open, and two bells as the glow swells. Then comes a small
+lift: a quick arpeggio of soft plucks runs up through the chord, E4 to
+B5, from left to right with the letters. It lands on a warm E major
+chord as the logo settles. The sting peaks at -11 dBFS, and has faded
+to silence by 1.4 seconds, before the intro has gone.
 
 A tap, a click or any key skips the intro. The app hears that it is done
 at once, and the intro and its sound fade out in 0.2 seconds. The

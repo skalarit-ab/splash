@@ -324,13 +324,13 @@ func TestSoundPlaysOnlyWhenTheAppWantsIt(t *testing.T) {
 		if mix.Playing() != 1 {
 			t.Fatalf("the mixer plays %d voices, want the sting alone", mix.Playing())
 		}
-		out := make([]float32, 2*int(mix.Frames(time.Second)))
+		out := make([]float32, 2*int(mix.Frames(Length)))
 		mix.Mix(out)
 		if loudest(out) == 0 {
 			t.Fatal("the sting is silent")
 		}
 		if mix.Playing() != 0 {
-			t.Fatal("the sting plays on past a second")
+			t.Fatalf("the sting plays on past %v, the intro's length", Length)
 		}
 	})
 	t.Run("silent", func(t *testing.T) {
@@ -432,12 +432,12 @@ func TestWire(t *testing.T) {
 	}
 }
 
-// The sting is under a second, gentle, in both ears, and ends in
-// silence with no click.
+// The sting has faded to silence a little before the intro has gone,
+// is gentle, is in both ears, and ends with no click.
 func TestTheStingIsShortAndGentle(t *testing.T) {
 	c := stingAt(audio.SampleRate)
-	if d := audio.Duration(c.Len()); d >= time.Second {
-		t.Fatalf("the sting is %v long", d)
+	if d := audio.Duration(c.Len()); d > Length-100*time.Millisecond {
+		t.Fatalf("the sting is %v long, and the intro %v", d, Length)
 	}
 	s := c.Samples()
 	if l := loudest(s); math.Abs(float64(l-stingPeak)) > 1e-3 {
@@ -493,4 +493,96 @@ func TestTheLogoKeepsClearOfThePhonesBars(t *testing.T) {
 			t.Fatalf("at rest %s is at %v, want %v", partName(id), got.rect, r)
 		}
 	}
+}
+
+// The sting lifts: an arpeggio runs up through E major, each note
+// coming in after the one below it, and lands on the E major chord.
+func TestTheStingLiftsIntoTheChord(t *testing.T) {
+	mono := monoOf(stingAt(audio.SampleRate).Samples())
+	at := func(secs float64) int { return int(secs * audio.SampleRate) }
+	for i, f := range arpeggio {
+		if i > 0 && f <= arpeggio[i-1] {
+			t.Fatalf("the arpeggio falls from %v to %v Hz", arpeggio[i-1], f)
+		}
+		// Each note's pitch grows louder as it comes in.
+		on := arpAt + float64(i)*arpGap
+		before := power(mono[at(on-0.04):at(on)], f)
+		after := power(mono[at(on):at(on+0.04)], f)
+		if after < 2*before {
+			t.Fatalf("the arpeggio's %v Hz grows from %.3g to only %.3g as it comes in", f, before, after)
+		}
+	}
+	// The chord grows as it lands, and its notes then ring on well above
+	// the notes outside the chord, after the arpeggio has died away.
+	// One ear is measured: each note is a touch apart in the two, so in
+	// mono they beat slowly.
+	left := leftOf(stingAt(audio.SampleRate).Samples())
+	ringing := left[at(chordAt+0.3):at(chordAt+0.6)]
+	var off float64
+	for _, f := range []float64{349.23, 392, 440, 523.25, 587.33} { // F4, G4, A4, C5 and D5
+		off = max(off, power(ringing, f))
+	}
+	var before, after float64
+	for _, f := range chord {
+		before += power(left[at(chordAt-0.1):at(chordAt)], f)
+		after += power(left[at(chordAt+0.05):at(chordAt+0.15)], f)
+		if p := power(ringing, f); p < 20*off {
+			t.Fatalf("the chord's %v Hz rings at %.3g, too close to the notes outside it, at %.3g", f, p, off)
+		}
+	}
+	// The arpeggio's own notes still ring as the chord lands, so the
+	// chord grows by half or more.
+	if after < 1.5*before {
+		t.Fatalf("the chord grows from %.3g to only %.3g as it lands", before, after)
+	}
+}
+
+// A skip fades the sting out as quickly as the picture, in 0.2 seconds.
+func TestASkipFadesTheSound(t *testing.T) {
+	mix := audio.NewMixer()
+	s := newStage(t, geom.Sz(900, 600), 60, Intro{}, mix)
+	prev := s.look()
+	s.run(500*time.Millisecond, &prev)
+	mix.Mix(make([]float32, 2*int(mix.Frames(500*time.Millisecond))))
+	s.w.Input(input.KeyPress{Key: input.KeySpace})
+	out := make([]float32, 2*int(mix.Frames(skipFade.Duration+20*time.Millisecond)))
+	mix.Mix(out)
+	// Still fading a tenth of a second on: a fade, never a cut.
+	if loudest(out[2*int(mix.Frames(80*time.Millisecond)):2*int(mix.Frames(100*time.Millisecond))]) == 0 {
+		t.Fatal("the sting had stopped 80 ms after the skip, with no fade")
+	}
+	if mix.Playing() != 0 {
+		t.Fatalf("%v after the skip the sting still plays", skipFade.Duration+20*time.Millisecond)
+	}
+}
+
+// leftOf is the left channel of stereo samples, left then right.
+func leftOf(s []float32) []float64 {
+	m := make([]float64, len(s)/2)
+	for i := range m {
+		m[i] = float64(s[2*i])
+	}
+	return m
+}
+
+// monoOf is stereo samples, left then right, mixed to one channel.
+func monoOf(s []float32) []float64 {
+	m := make([]float64, len(s)/2)
+	for i := range m {
+		m[i] = float64(s[2*i]+s[2*i+1]) / 2
+	}
+	return m
+}
+
+// power is how strong the frequency f is in x, at the sample rate, as
+// the Goertzel algorithm measures one bin, through a Hann window so the
+// strong notes nearby leak little into it.
+func power(x []float64, f float64) float64 {
+	k := 2 * math.Cos(2*math.Pi*f/audio.SampleRate)
+	var s1, s2 float64
+	for i, v := range x {
+		hann := 0.5 - 0.5*math.Cos(2*math.Pi*float64(i)/float64(len(x)-1))
+		s1, s2 = v*hann+k*s1-s2, s1
+	}
+	return (s1*s1 + s2*s2 - k*s1*s2) / float64(len(x)*len(x))
 }

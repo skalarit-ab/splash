@@ -70,16 +70,19 @@ type pose struct {
 	typing           [2]float32
 }
 
-// personSize scales the person from their paths: 25 of the logo's
-// units high, about half a letter.
-const personSize = 1.2
+// personSize scales the person from their paths: 50 of the logo's
+// units high, about a letter, which is 53. Their head reaches 15 units
+// above the logo's view box; the logo is at most half as high as the
+// room it is centred in, so it leaves at least 63 of its units above
+// it, and the head stays in the window.
+const personSize = 2.4
 
 // How the person falls: fallDrop down and fallDrift across, in the
 // logo's units, turning by fallTurn radians, and with the hands thrown
 // up by fallHands.
 const (
-	fallDrop  = 46
-	fallDrift = 7
+	fallDrop  = 70
+	fallDrift = 12
 	fallTurn  = -1.1
 	fallHands = 5
 )
@@ -100,7 +103,7 @@ func (pn *person) paint(p *paint.Painter, vb, r geom.Rect, seat geom.Point, ps p
 	// tumble back, turning about their middle.
 	drop := geom.Pt(ps.fall*fallDrift*k, ps.fall*fallDrop*k)
 	defer p.Push(paint.Translate(drop).
-		Mul(paint.Rotate(ps.fall*fallTurn, at(geom.Pt(0, -9)))).
+		Mul(paint.Rotate(ps.fall*fallTurn, at(geom.Pt(0, -9*personSize)))).
 		Mul(paint.Scale(ps.sat*personSize, sp)))()
 	a := ps.alpha
 	mask := func(path *shape.Path, c color.NRGBA) {

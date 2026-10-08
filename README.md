@@ -13,8 +13,9 @@ few lines.
 The diamond pops in on a spring with a little turn. The wedges open out
 from behind it, one to each side, and the glow in the diamond swells
 once and settles. The letters rise into place one after another, from
-left to right. Just after the T, a little person pops up on top of it,
-sat at a laptop that glows in the logo's teal, typing away. At 1.3
+left to right. Just after the T, a little person about a letter high
+pops up on top of it, sat at a laptop that glows in the logo's teal,
+typing away. At 1.3
 seconds the intro tells the app it is done and fades away over the
 app's first screen. The T goes first, from under the person, who loses
 their seat and falls with a springy "boioioing", tumbling back, and

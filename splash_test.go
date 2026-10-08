@@ -497,6 +497,19 @@ func TestTheLogoKeepsClearOfThePhonesBars(t *testing.T) {
 	s := newStage(t, size, 60, Intro{}, nil)
 	s.w.Offscreen().SetSafeArea(safe)
 	prev := s.look()
+	// The person, a letter high on top of the T, keeps clear of the bars
+	// too, sat and falling.
+	for s.at+s.dt/2 < Length {
+		s.frame()
+		for id, p := range s.look().person() {
+			if p.rect.Min.Y < safe.Top || p.rect.Max.Y > size.H-safe.Bottom {
+				t.Fatalf("at %v %s is at %v, under the phone's bars", s.at, partName(id), p.rect)
+			}
+		}
+	}
+	s = newStage(t, size, 60, Intro{}, nil)
+	s.w.Offscreen().SetSafeArea(safe)
+	prev = s.look()
 	s.run(time.Second, &prev)
 	for id, r := range restIn(t, size, safe) {
 		if got := prev.parts[id]; id < personBody && !near(got.rect, r, 0.5) {
@@ -738,8 +751,8 @@ func TestThePersonFallsWhenTheTGoes(t *testing.T) {
 			if fellAt < fallAt || fellAt > fallAt+2*s.dt {
 				t.Fatalf("the person fell from %v, want %v", fellAt, fallAt)
 			}
-			if fell < 20*k {
-				t.Fatalf("the person fell only %.1f while they showed, want %.1f or more", fell, 20*k)
+			if fell < 30*k {
+				t.Fatalf("the person fell only %.1f while they showed, want %.1f or more", fell, 30*k)
 			}
 			if len(prev.person()) != 0 {
 				t.Fatal("the person still shows at the end")

@@ -63,14 +63,16 @@ func TestTheIntroPlaysThroughSmoothly(t *testing.T) {
 					}
 					prev := first
 					s.run(time.Second, &prev)
-					// At rest: every part whole, where the logo puts it.
+					// At rest: every part of the logo whole, where the logo puts
+					// it, and by 1.25 s the person, sat on the T.
 					want := rest(t, size)
 					for id, r := range want {
-						got, ok := prev.parts[id]
-						if !ok || got.alpha < 0.999 || !near(got.rect, r, 0.5) {
+						if got, ok := prev.parts[id]; id < personBody && (!ok || got.alpha < 0.999 || !near(got.rect, r, 0.5)) {
 							t.Fatalf("at rest %s is %+v, want %v whole", partName(id), got, r)
 						}
 					}
+					s.run(1250*time.Millisecond, &prev)
+					seated(t, prev, size, in)
 					s.run(Length+2*s.dt, &prev)
 					if len(s.dones) != 1 || s.dones[0].Skipped {
 						t.Fatalf("the app heard %+v, want one Done, unskipped", s.dones)
@@ -149,9 +151,10 @@ func TestASkipFadesAtOnceAndSendsDoneOnce(t *testing.T) {
 		"key": func(w *gunim.Window) { w.Input(input.KeyPress{Key: input.KeySpace}) },
 	}
 	for name, skip := range skips {
-		// At once, as the diamond pops, as the letters come in, and as
-		// the intro fades on its own.
-		for _, at := range []time.Duration{0, 50 * time.Millisecond, 380 * time.Millisecond, 1350 * time.Millisecond} {
+		// At once, as the diamond pops, as the letters come in, with the
+		// person sat, as the intro fades on its own, and as the person
+		// falls.
+		for _, at := range []time.Duration{0, 50 * time.Millisecond, 380 * time.Millisecond, time.Second, 1350 * time.Millisecond, 1450 * time.Millisecond} {
 			t.Run(fmt.Sprintf("%s/%v", name, at), func(t *testing.T) {
 				s := newStage(t, geom.Sz(900, 600), 144, Intro{}, nil)
 				prev := s.look()
@@ -163,6 +166,11 @@ func TestASkipFadesAtOnceAndSendsDoneOnce(t *testing.T) {
 					t.Fatalf("after the %s the app heard %+v, want one Done, skipped", name, s.dones)
 				}
 				s.run(at+skipFade.Duration+2*s.dt, &prev)
+				// After Done the app has unmounted the intro, and the press is
+				// the app's: the person falls on, as the natural end runs.
+				if n := len(prev.person()); !natural && n != 0 {
+					t.Fatalf("0.2 s after the %s the person still shows %d parts", name, n)
+				}
 				if natural {
 					// Fading already, it fades on as it was.
 					s.run(Length+2*s.dt, &prev)
@@ -223,10 +231,12 @@ func TestAResizeInTheMiddleCarriesOn(t *testing.T) {
 			prev = after
 			s.run(time.Second, &prev)
 			for id, r := range rest(t, to) {
-				if got := prev.parts[id]; !near(got.rect, r, 0.5) {
+				if got := prev.parts[id]; id < personBody && !near(got.rect, r, 0.5) {
 					t.Fatalf("at rest after the resize %s is at %v, want %v", partName(id), got.rect, r)
 				}
 			}
+			s.run(1250*time.Millisecond, &prev)
+			seated(t, prev, to, Intro{})
 			s.run(Length+2*s.dt, &prev)
 			if len(s.dones) != 1 || s.dones[0].Skipped || s.doneAts[0]-doneAt > s.dt {
 				t.Fatalf("the app heard %+v at %v, want one Done at %v", s.dones, s.doneAts, doneAt)
@@ -321,8 +331,8 @@ func TestSoundPlaysOnlyWhenTheAppWantsIt(t *testing.T) {
 		}
 		prev := s.look()
 		s.run(Length+2*s.dt, &prev)
-		if mix.Playing() != 1 {
-			t.Fatalf("the mixer plays %d voices, want the sting alone", mix.Playing())
+		if mix.Playing() != 2 {
+			t.Fatalf("the mixer plays %d voices, want the sting and the boing", mix.Playing())
 		}
 		out := make([]float32, 2*int(mix.Frames(Length)))
 		mix.Mix(out)
@@ -489,7 +499,7 @@ func TestTheLogoKeepsClearOfThePhonesBars(t *testing.T) {
 	prev := s.look()
 	s.run(time.Second, &prev)
 	for id, r := range restIn(t, size, safe) {
-		if got := prev.parts[id]; !near(got.rect, r, 0.5) {
+		if got := prev.parts[id]; id < personBody && !near(got.rect, r, 0.5) {
 			t.Fatalf("at rest %s is at %v, want %v", partName(id), got.rect, r)
 		}
 	}
@@ -636,4 +646,224 @@ func power(x []float64, f float64) float64 {
 		s1, s2 = v*hann+k*s1-s2, s1
 	}
 	return (s1*s1 + s2*s2 - k*s1*s2) / float64(len(x)*len(x))
+}
+
+// seated fails the test unless lk shows the person whole, sat on top of
+// the T, in place, in the letters' colour, their hands at the laptop.
+func seated(t *testing.T, lk look, size geom.Size, in Intro) {
+	t.Helper()
+	want := rest(t, size)
+	l, err := theLogo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	k := logoRect(l.box, geom.Rect{Max: size.Point()}).Size().W / l.box.Size().W
+	for id, r := range want {
+		if id < personBody {
+			continue
+		}
+		got, ok := lk.parts[id]
+		if !ok || got.alpha < 0.999 {
+			t.Fatalf("%s is %+v, want it whole", partName(id), got)
+		}
+		if id == personLeftHand || id == personRightHand {
+			// Typing, a hand rises as far as 1.1 of the logo's units.
+			if d := r.Min.Y - got.rect.Min.Y; d < -0.5 || d > 1.1*personSize*k+0.5 {
+				t.Fatalf("%s is at %v, want it at %v or up to %.1f above", partName(id), got.rect, r, 1.1*personSize*k)
+			}
+			continue
+		}
+		if !near(got.rect, r, 0.5) {
+			t.Fatalf("%s is at %v, want %v", partName(id), got.rect, r)
+		}
+	}
+	// Sat on the T: the body's bottom on the T's top, over its middle.
+	tRect, body := want[partLetters+letterCount-1], lk.parts[personBody].rect
+	if abs(body.Max.Y-tRect.Min.Y) > 0.5 || abs(body.Center().X-tRect.Center().X) > 0.5 {
+		t.Fatalf("the person sits at %v, want them on the T at %v", body, tRect)
+	}
+	ink := inkOn(background(in))
+	for _, id := range []int{personBody, personHead, personLeftHand, personRightHand} {
+		if c := lk.parts[id].color; c != ink {
+			t.Fatalf("%s is %v, want the letters' %v", partName(id), c, ink)
+		}
+	}
+}
+
+// The person types while they sit, falls only once the T has gone from
+// under them, falls a clear way, tumbling, and fades as they go, never
+// leaving the window.
+func TestThePersonFallsWhenTheTGoes(t *testing.T) {
+	for _, size := range sizes {
+		t.Run(fmt.Sprintf("%vx%v", size.W, size.H), func(t *testing.T) {
+			s := newStage(t, size, 144, Intro{}, nil)
+			l, err := theLogo()
+			if err != nil {
+				t.Fatal(err)
+			}
+			k := logoRect(l.box, geom.Rect{Max: size.Point()}).Size().W / l.box.Size().W
+			prev := s.look()
+			var fellAt time.Duration
+			var fell float32
+			// low and high are how high the left hand goes while the person
+			// sits, from 1.12 s, once their pop has settled.
+			low, high := float32(math.Inf(1)), float32(math.Inf(-1))
+			for s.at+s.dt/2 < Length+2*s.dt {
+				s.frame()
+				cur := s.look()
+				inside(t, s.at, cur, size)
+				smooth(t, s.at, prev, cur, s.dt, size)
+				prev = cur
+				if hand, ok := cur.parts[personLeftHand]; ok && s.at >= 1120*time.Millisecond && s.at <= 1250*time.Millisecond {
+					low, high = min(low, hand.rect.Min.Y), max(high, hand.rect.Min.Y)
+				}
+				body, ok := cur.parts[personBody]
+				if !ok {
+					continue
+				}
+				drop := body.rect.Max.Y - seatNow(t, cur, size)
+				if drop > 0.01 && fellAt == 0 {
+					fellAt = s.at
+				}
+				if drop <= 0.5 {
+					continue
+				}
+				if tee := cur.parts[partLetters+letterCount-1]; tee.alpha > 0.2 {
+					t.Fatalf("at %v the person has dropped %.1f with the T still %.2f there", s.at, drop, tee.alpha)
+				}
+				if body.alpha >= 0.05 {
+					fell = max(fell, drop)
+				}
+			}
+			if fellAt < fallAt || fellAt > fallAt+2*s.dt {
+				t.Fatalf("the person fell from %v, want %v", fellAt, fallAt)
+			}
+			if fell < 20*k {
+				t.Fatalf("the person fell only %.1f while they showed, want %.1f or more", fell, 20*k)
+			}
+			if len(prev.person()) != 0 {
+				t.Fatal("the person still shows at the end")
+			}
+			if typed := high - low; typed < 0.5*1.1*personSize*k {
+				t.Fatalf("sat, the person's hand moves only %.2f, want them typing", typed)
+			}
+		})
+	}
+}
+
+// The boing plays as the person falls: on the frame the fall starts,
+// with sound on.
+func TestTheBoingPlaysAsThePersonFalls(t *testing.T) {
+	mix := audio.NewMixer()
+	s := newStage(t, geom.Sz(900, 600), 60, Intro{}, mix)
+	var boingAt, fellAt time.Duration
+	for s.at+s.dt/2 < Length {
+		s.frame()
+		if mix.Playing() == 2 && boingAt == 0 {
+			boingAt = s.at
+		}
+		lk := s.look()
+		if body, ok := lk.parts[personBody]; ok && body.rect.Max.Y-seatNow(t, lk, s.size) > 0.01 && fellAt == 0 {
+			fellAt = s.at
+		}
+	}
+	// The fall starts slow, so it shows by the frame after at most.
+	if boingAt == 0 || fellAt < boingAt || fellAt > boingAt+s.dt || boingAt < fallAt || boingAt >= fallAt+s.dt {
+		t.Fatalf("the boing came at %v and the fall at %v, want both at %v", boingAt, fellAt, fallAt)
+	}
+}
+
+// A skip as the person falls fades the boing, and the sting, in 0.2
+// seconds. It is for an app that leaves the intro in after Done: one
+// that unmounts it has the presses from Done on.
+func TestASkipFadesTheBoing(t *testing.T) {
+	mix := audio.NewMixer()
+	s := newStage(t, geom.Sz(900, 600), 60, Intro{}, mix)
+	s.unmount = false
+	prev := s.look()
+	s.run(1450*time.Millisecond, &prev)
+	if mix.Playing() != 2 {
+		t.Fatalf("as the person falls the mixer plays %d voices, want the sting and the boing", mix.Playing())
+	}
+	s.w.Input(input.KeyPress{Key: input.KeySpace})
+	out := make([]float32, 2*int(mix.Frames(skipFade.Duration+20*time.Millisecond)))
+	mix.Mix(out)
+	if loudest(out[2*int(mix.Frames(80*time.Millisecond)):2*int(mix.Frames(100*time.Millisecond))]) == 0 {
+		t.Fatal("the sound had stopped 80 ms after the skip, with no fade")
+	}
+	if mix.Playing() != 0 {
+		t.Fatalf("%v after the skip the mixer still plays %d voices", skipFade.Duration+20*time.Millisecond, mix.Playing())
+	}
+}
+
+// The boing is short, as gentle as the sting, ends in silence by the time
+// the intro has gone, and wobbles: its pitch bounces up and down many
+// times as it falls.
+func TestTheBoingWobbles(t *testing.T) {
+	c := boingAt(audio.SampleRate)
+	d := audio.Duration(c.Len())
+	if fallAt+d > Length+10*time.Millisecond {
+		t.Fatalf("the boing ends at %v, after the intro's end at %v", fallAt+d, Length)
+	}
+	smp := c.Samples()
+	if l := loudest(smp); math.Abs(float64(l-boingPeak)) > 1e-3 {
+		t.Fatalf("the boing peaks at %v, want %v", l, boingPeak)
+	}
+	if end := loudest(smp[len(smp)-2:]); end > 1e-3 {
+		t.Fatalf("the boing ends at %v, not in silence", end)
+	}
+	// Its pitch, from the time between upward zero crossings.
+	mono := monoOf(smp)
+	var times, pitches []float64
+	last := -1
+	for i := 1; i < len(mono); i++ {
+		if mono[i-1] < 0 && mono[i] >= 0 {
+			if last >= 0 {
+				times = append(times, float64(i)/audio.SampleRate)
+				pitches = append(pitches, audio.SampleRate/float64(i-last))
+			}
+			last = i
+		}
+	}
+	// The pitch turns from rising to falling and back: a turn counts once
+	// the pitch has come 5% back from the highest or lowest it reached,
+	// so the measure's own small wobbles count for nothing.
+	turns, rising, extreme := 0, false, pitches[0]
+	for i := 1; i < len(pitches) && times[i] <= 0.25; i++ {
+		p := pitches[i]
+		switch {
+		case rising && p > extreme, !rising && p < extreme:
+			extreme = p
+		case rising && p < extreme*0.95, !rising && p > extreme*1.05:
+			turns++
+			rising, extreme = !rising, p
+		}
+	}
+	if turns < 6 {
+		t.Fatalf("the boing's pitch turns %d times in its first quarter second, want it to bounce", turns)
+	}
+	first, lastP := pitches[0], pitches[len(pitches)-1]
+	if lastP >= first {
+		t.Fatalf("the boing's pitch goes from %.0f to %.0f Hz, want it to fall", first, lastP)
+	}
+}
+
+// seatNow is where the seat is in lk, in a window of size: the logo grows
+// by up to 5% about its middle as it fades, and the seat with it. The
+// S's width, against its width at rest, says how far it has grown: the
+// letters change size in nothing else.
+func seatNow(t *testing.T, lk look, size geom.Size) float32 {
+	t.Helper()
+	l, err := theLogo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := logoRect(l.box, geom.Rect{Max: size.Point()})
+	want := rest(t, size)
+	grown := float32(1.05)
+	if d, ok := lk.parts[partLetters]; ok {
+		grown = d.rect.Size().W / want[partLetters].Size().W
+	}
+	c := r.Center().Y
+	return c + (want[personBody].Max.Y-c)*grown
 }

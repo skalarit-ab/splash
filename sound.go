@@ -260,3 +260,71 @@ func bell(t, on, f, detune float64) float64 {
 	att := min(u/0.025, 1)
 	return att * (math.Sin(w)*math.Exp(-u/0.3) + 0.25*math.Sin(2.76*w)*math.Exp(-u/0.09))
 }
+
+// The boing the little person makes as they fall: a springy, wobbling
+// twang, its pitch bouncing up and down quickly as it falls from C#5 to
+// E4 and dies away, as a cartoon spring's does. It is boingLength
+// seconds long and peaks at boingPeak, as loud as the sting is at its
+// fullest.
+const (
+	boingLength = 0.34
+	boingPeak   = 0.24
+	// boingFrom and boingTo are where the pitch falls from and to, in
+	// hertz, over about boingGlide seconds.
+	boingFrom  = 554.37
+	boingTo    = noteE4
+	boingGlide = 0.15
+	// boingRate is how many times a second the pitch bounces, and
+	// boingDepth how far, as a share of the pitch, at first; the bounce
+	// dies away over about boingSettle seconds.
+	boingRate   = 15
+	boingDepth  = 0.3
+	boingSettle = 0.2
+)
+
+var boings = map[int]*audio.Clip{}
+
+// boingAt returns the boing made for a mixer running at rate frames a
+// second, making it the first time.
+func boingAt(rate int) *audio.Clip {
+	stingMu.Lock()
+	defer stingMu.Unlock()
+	if c := boings[rate]; c != nil {
+		return c
+	}
+	c := audio.NewClip(boingSamples(rate))
+	boings[rate] = c
+	return c
+}
+
+// boingSamples renders the boing at rate frames a second, as stereo
+// samples, left then right, the same in both.
+func boingSamples(rate int) []float32 {
+	hz := float64(rate)
+	n := int(boingLength * hz)
+	s := make([]float32, 2*n)
+	var ph, loudest float64
+	for i := range n {
+		t := float64(i) / hz
+		ph += 2 * math.Pi * boingPitch(t) / hz
+		// A twang: the tone and its next two harmonics, struck quickly and
+		// dying away, the last 40 ms fading to silence.
+		v := math.Sin(ph) + 0.35*math.Sin(2*ph) + 0.12*math.Sin(3*ph)
+		v *= min(t/0.005, 1) * math.Exp(-t/0.16) * min(1, float64(n-i)/(0.04*hz))
+		s[2*i], s[2*i+1] = float32(v), float32(v)
+		loudest = max(loudest, math.Abs(v))
+	}
+	if loudest > 0 {
+		k := float32(boingPeak / loudest)
+		for i := range s {
+			s[i] *= k
+		}
+	}
+	return s
+}
+
+// boingPitch is the boing's pitch t seconds in, in hertz.
+func boingPitch(t float64) float64 {
+	glide := boingTo + (boingFrom-boingTo)*math.Exp(-t/boingGlide)
+	return glide * (1 + boingDepth*math.Exp(-t/boingSettle)*math.Sin(2*math.Pi*boingRate*t))
+}

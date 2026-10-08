@@ -13,10 +13,14 @@ few lines.
 The diamond pops in on a spring with a little turn. The wedges open out
 from behind it, one to each side, and the glow in the diamond swells
 once and settles. The letters rise into place one after another, from
-left to right. At 1.3 seconds the intro tells the app it is done and
-fades away over the app's first screen. It is gone at 1.62 seconds.
+left to right. Just after the T, a little person pops up on top of it,
+sat at a laptop that glows in the logo's teal, typing away. At 1.3
+seconds the intro tells the app it is done and fades away over the
+app's first screen. The T goes first, from under the person, who loses
+their seat and falls with a springy "boioioing", tumbling back, and
+fades last. It is all gone at 1.72 seconds.
 
-![Moments of the intro: at 0.06, 0.15, 0.3, 0.45 and 1 second](docs/moments.png)
+![Moments of the intro: at 0.06, 0.15, 0.45, 1.1 and 1.55 seconds](docs/moments.png)
 
 The sound follows the logo, in E major. An E major chord, E4, G#4, B4
 and E5 over E3 and B2, starts at the first frame, quietly. It grows
@@ -26,12 +30,16 @@ tones sound mostly through their octaves, so a phone's small speaker
 still gives them. Chimes play over the chord: a soft pop rising into
 B4 as the diamond lands, a mallet note from the left and one from the
 right as the wedges open, two bells as the glow swells, and a light run
-of plucks up through the chord as the letters rise. The sound peaks at
--11 dBFS and has faded to silence by 1.4 seconds, before the intro has
-gone.
+of plucks up through the chord as the letters rise. As the person
+falls, a boing plays on the frame the fall starts: a twang whose pitch
+bounces up and down 15 times a second as it falls from C#5 to E4, for
+0.34 seconds. The sound peaks at -11 dBFS, and has all faded by 1.72
+seconds, as the intro goes.
 
 A tap, a click or any key skips the intro. The app hears that it is done
-at once, and the intro and its sound fade out in 0.2 seconds. The
+at once, and the intro, the person and the sound fade out in 0.2
+seconds. From Done on, the app has the taps and keys, and the person's
+fall plays out. The
 window hidden in the middle, as a phone's app sent to the background,
 skips it too.
 
@@ -117,9 +125,14 @@ frame: nothing jumps, nothing pops in or out at once, the logo stays in
 the window, and the letters come in from left to right. They play it
 through at 60 and 144 frames a second in four window sizes, on light and
 dark, and check that 30, 60, 90 and 144 frames a second show the same
-moments. They also skip it in the middle, resize the window in the
-middle, hide the window in the middle, play it in tiny windows, play it
-with the sound off, and check that `Done` comes exactly once.
+moments. They check the little person: sat on the T in every size, in
+the letters' colour on light and dark, typing; falling only once the T
+has gone, a clear way, within the window; and gone by the end. The
+boing plays on the frame the fall starts, wobbles in pitch, and stays
+silent with the sound off. They also skip it in the middle, resize the
+window in the middle, hide the window in the middle, play it in tiny
+windows, play it with the sound off, and check that `Done` comes
+exactly once.
 
 ```sh
 go test ./...

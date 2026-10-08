@@ -2,6 +2,7 @@ package splash
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"testing"
 	"time"
@@ -112,6 +113,32 @@ func (s *stage) drain() {
 type part struct {
 	rect  geom.Rect
 	alpha float32
+	// color is a solid part's colour.
+	color color.NRGBA
+}
+
+// The person's parts, as look names them, after the logo's.
+const (
+	personBody = 100 + iota
+	personHead
+	personLid
+	personBase
+	personMark
+	personLeftHand
+	personRightHand
+)
+
+// personParts are the person's parts by the name look gives them.
+func personParts(t *testing.T) map[*shape.Path]int {
+	t.Helper()
+	pn, err := thePerson()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return map[*shape.Path]int{
+		pn.body: personBody, pn.head: personHead, pn.lid: personLid, pn.base: personBase,
+		pn.mark: personMark, pn.hands[0]: personLeftHand, pn.hands[1]: personRightHand,
+	}
 }
 
 // look is what a frame drew of the intro.
@@ -121,6 +148,17 @@ type look struct {
 	// parts are the logo's pieces drawn, by their place in the logo:
 	// the left wedge, the right wedge, the diamond and the letters.
 	parts map[int]part
+}
+
+// person returns the person's parts in lk.
+func (lk look) person() map[int]part {
+	out := map[int]part{}
+	for id, p := range lk.parts {
+		if id >= personBody {
+			out[id] = p
+		}
+	}
+	return out
 }
 
 // look reads what the last frame drew.
@@ -141,6 +179,9 @@ func lookAt(t *testing.T, ops []paint.Op) look {
 	}
 	for i, f := range l.letters {
 		ids[f.Parts[0].Path] = partLetters + i
+	}
+	for path, id := range personParts(t) {
+		ids[path] = id
 	}
 	lk := look{bg: -1, parts: map[int]part{}}
 	opacity := []float32{1}
@@ -163,11 +204,22 @@ func lookAt(t *testing.T, ops []paint.Op) look {
 			if !ok {
 				continue
 			}
+			if _, seen := lk.parts[id]; seen {
+				// The screen's light on the person's head and body, over them.
+				continue
+			}
 			a := opacity[len(opacity)-1]
-			if op.Gradient == nil {
+			if g := op.Gradient; g != nil {
+				// A gradient shows as much as its most opaque colour.
+				top := max(g.Start.A, g.End.A)
+				for _, st := range g.Stops {
+					top = max(top, st.Color.A)
+				}
+				a *= float32(top) / 255
+			} else {
 				a *= float32(op.Color.A) / 255
 			}
-			lk.parts[id] = part{rect: moved(op.Transform, op.Rect), alpha: a}
+			lk.parts[id] = part{rect: moved(op.Transform, op.Rect), alpha: a, color: op.Color}
 		}
 	}
 	return lk
@@ -193,6 +245,20 @@ func partName(id int) string {
 		return "the right wedge"
 	case partDiamond:
 		return "the diamond"
+	case personBody:
+		return "the person's body"
+	case personHead:
+		return "the person's head"
+	case personLid:
+		return "the person's laptop"
+	case personBase:
+		return "the person's laptop's base"
+	case personMark:
+		return "the mark on the laptop"
+	case personLeftHand:
+		return "the person's left hand"
+	case personRightHand:
+		return "the person's right hand"
 	}
 	return fmt.Sprintf("letter %c", "SKALARIT"[id-partLetters])
 }
@@ -217,6 +283,14 @@ func restIn(t *testing.T, size geom.Size, safe geom.Insets) map[int]geom.Rect {
 	for i, f := range l.letters {
 		fill := f.Parts[0].Path.Fill()
 		out[partLetters+i] = fill.In(l.box, r)
+	}
+	// The person, seated, their hands at rest, scaled about the seat.
+	k := r.Size().W / l.box.Size().W
+	box := geom.Rect{Min: l.box.Min.Sub(l.seat), Max: l.box.Max.Sub(l.seat)}
+	seat := r.Min.Add(l.seat.Sub(l.box.Min).Mul(k))
+	for path, id := range personParts(t) {
+		fill := path.Fill()
+		out[id] = moved(paint.Scale(personSize, seat), fill.In(box, r))
 	}
 	return out
 }

@@ -35,10 +35,12 @@ type logo struct {
 	mark [3]*shape.Figure
 	// letters are SKALARIT, left to right.
 	letters [letterCount]*shape.Figure
-	// centre is the middle of the diamond, which it pops from, and
-	// marks are the middles of the wedges, in the view box's units.
-	centre geom.Point
-	marks  [2]geom.Point
+	// centre is the middle of the diamond, which it pops from; marks are
+	// the middles of the wedges; tMiddle is the T's middle, and seat the
+	// middle of its top, where the little person sits: all in the view
+	// box's units.
+	centre, tMiddle, seat geom.Point
+	marks                 [2]geom.Point
 }
 
 // theLogo reads the logo the first time it is asked for.
@@ -62,6 +64,8 @@ func readLogo(src []byte) (*logo, error) {
 		l.letters[i] = one(partLetters + i)
 	}
 	l.centre = f.Parts[partDiamond].Path.Bounds().Center()
+	t := f.Parts[partLetters+letterCount-1].Path.Bounds()
+	l.tMiddle, l.seat = t.Center(), geom.Pt(t.Center().X, t.Min.Y)
 	l.marks = [2]geom.Point{f.Parts[partLeft].Path.Bounds().Center(), f.Parts[partRight].Path.Bounds().Center()}
 	return l, nil
 }

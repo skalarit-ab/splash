@@ -149,8 +149,9 @@ const maxStep = 100 * time.Millisecond
 // 64% of the box's width, half its height and 520 logical pixels across.
 // On a phone the logo keeps to the part of the box the system's bars
 // leave clear, [gunim.Frame.Safe].
+//
 // It takes a press of the pointer and every key, as it shows over the
-// app.
+// app, and holds the keyboard as a dialog does.
 type Splash struct {
 	anim.Group
 	// OnDone runs as the intro hands over to the app: as it starts to
@@ -233,8 +234,7 @@ func Register(w *gunim.Window, mix *audio.Mixer) {
 
 // Set takes new state. A new background glides in once the intro has
 // started. Turning the sound off fades out the sting playing.
-func (s *Splash) Set(in Intro, u *gunim.UI) {
-	_ = u
+func (s *Splash) Set(in Intro, _ *gunim.UI) {
 	s.in = in
 	if s.started {
 		s.bg.Animate(background(in), anim.Gentle)
@@ -247,7 +247,7 @@ func (s *Splash) Set(in Intro, u *gunim.UI) {
 	}
 }
 
-// background is the colour in shows behind the logo.
+// background is the colour the intro shows behind the logo for in.
 func background(in Intro) color.NRGBA {
 	if in.Background.A == 0 {
 		return Light

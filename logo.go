@@ -35,12 +35,10 @@ type logo struct {
 	mark [3]*shape.Figure
 	// letters are SKALARIT, left to right.
 	letters [letterCount]*shape.Figure
-	// centre is the middle of the diamond, which it pops from; marks
-	// are the middles of the wedges, and lettersBox the box round the
-	// letters, all in the view box's units.
-	centre     geom.Point
-	marks      [2]geom.Point
-	lettersBox geom.Rect
+	// centre is the middle of the diamond, which it pops from, and
+	// marks are the middles of the wedges, in the view box's units.
+	centre geom.Point
+	marks  [2]geom.Point
 }
 
 // theLogo reads the logo the first time it is asked for.
@@ -62,12 +60,6 @@ func readLogo(src []byte) (*logo, error) {
 	}
 	for i := range l.letters {
 		l.letters[i] = one(partLetters + i)
-		b := f.Parts[partLetters+i].Path.Bounds()
-		if i == 0 {
-			l.lettersBox = b
-		} else {
-			l.lettersBox = l.lettersBox.Union(b)
-		}
 	}
 	l.centre = f.Parts[partDiamond].Path.Bounds().Center()
 	l.marks = [2]geom.Point{f.Parts[partLeft].Path.Bounds().Center(), f.Parts[partRight].Path.Bounds().Center()}

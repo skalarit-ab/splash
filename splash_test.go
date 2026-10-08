@@ -254,8 +254,7 @@ func TestHiddenInTheMiddleSkips(t *testing.T) {
 	if n := mix.Playing(); n != 0 {
 		t.Fatalf("hidden, the mixer still plays %d voices", n)
 	}
-	// A real window draws no frames while hidden; time passes.
-	time.Sleep(10 * time.Millisecond)
+	// A real window draws no frames while hidden, so none run here.
 	s.w.Input(driver.WindowShown{Shown: true})
 	s.frame()
 	back := s.look()

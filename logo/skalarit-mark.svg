@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="127.3" height="127.3" viewBox="-22.8 0 127.3 127.3">
+<title>Skalarit mark</title>
+<defs>
+<radialGradient id="l" cx="1" cy=".5" r="1"><stop offset="0" stop-color="#c6e5ec"/><stop offset=".7" stop-color="#0085a5"/></radialGradient>
+<radialGradient id="r" cx="0" cy=".5" r="1"><stop offset="0" stop-color="#d6eff3"/><stop offset=".7" stop-color="#4db7ca"/></radialGradient>
+<radialGradient id="c" gradientTransform="matrix(1.2 0 0 .95 -.1 .025)"><stop offset=".42" stop-color="#e6f0f9"/><stop offset="1" stop-color="#3692b6"/></radialGradient>
+</defs>
+<g transform="matrix(.133333 0 0 -.133333 0 127.293)">
+<path fill="url(#l)" d="M 162.5,117.2 C 100.6,227.2 50.4,339.3 1.2,477.7 50.4,616 100.6,728.2 162.5,838.1 174.1,817.6 185.2,797 196,776.2 153.6,683.9 114.2,585.9 75.3,476.4 114,367.5 153.2,269.9 195.4,177.9 184.8,157.5 173.8,137.3 162.5,117.2"/>
+<path fill="url(#r)" d="m 449.8,117.2 c -11.5,20.4 -22.5,40.8 -33.3,61.5 42,91.8 81.1,189.1 119.7,297.8 -38.8,109.1 -78.1,206.9 -120.3,299 10.9,21.1 22.2,41.9 33.9,62.7 C 511.7,728.2 561.9,616 611.1,477.7 561.9,339.3 511.7,227.2 449.8,117.2"/>
+<path fill="url(#c)" d="M 306.2,4.3 C 224.8,148.7 158.9,296 94.3,477.7 159,659.3 224.9,806.6 306.2,951 387.5,806.6 453.4,659.3 518,477.7 453.4,296 387.5,148.7 306.2,4.3"/>
+</g>
+</svg>

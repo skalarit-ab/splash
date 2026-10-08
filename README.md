@@ -1,6 +1,125 @@
 # splash
 
-"Made by Skalarit": the short intro Skalarit AB's apps open with, the
-logo animated with gunim, and a sound from gunim's audio.
+"Made by Skalarit": the short intro Skalarit AB's apps open with. It is
+Skalarit's logo, animated with [gunim](https://github.com/marrasen/gunim),
+with a short sting of sound made in code. Any gunim app shows it in a
+few lines.
 
-Work in progress; see issue #1 for what it will be.
+![The intro on a light background](docs/intro-light.gif)
+![The intro on a dark background](docs/intro-dark.gif)
+
+## What it does
+
+The diamond pops in on a spring with a little turn. The wedges open out
+from behind it, one to each side, and the glow in the diamond swells
+once and settles. The letters rise into place one after another, from
+left to right. At 1.3 seconds the intro tells the app it is done and
+fades away over the app's first screen. It is gone at 1.62 seconds.
+
+![Moments of the intro: at 0.06, 0.15, 0.3, 0.45 and 1 second](docs/moments.png)
+
+The sting follows the logo, in E major: a soft pop rising into B4 as the
+diamond lands, a mallet note from the left and one from the right as
+the wedges open, and two bells as the glow swells. It lasts 0.9 seconds
+and peaks at -11 dBFS.
+
+A tap, a click or any key skips the intro. The app hears that it is done
+at once, and the intro and its sound fade out in 0.2 seconds. The
+window hidden in the middle, as a phone's app sent to the background,
+skips it too.
+
+The logo keeps its proportions and sits in the middle of any window: a
+phone held upright or sideways, a tablet or a desktop window. It is as
+large as fits within 64% of the window's width, half its height and 520
+logical pixels across. On a phone it keeps clear of the status bar and
+the navigation bar.
+
+<img src="docs/phone-dark.png" alt="The intro on a phone, on a dark background" width="195">
+
+## Using it
+
+Register the view with the window, mount the app's first screen, then
+mount the intro over it. The first screen loads behind the intro
+meanwhile. Unmount the intro when it says it is done:
+
+```go
+splash.Register(w, mix) // the app's audio.Mixer, or nil for silence
+
+c.Mount(gunim.Root, "home", "home", home)
+c.Mount(gunim.Root, "intro", splash.View, splash.Intro{Background: splash.Dark})
+
+for ev := range c.Intents() {
+	switch ev.Intent.(type) {
+	case splash.Done:
+		c.Unmount("intro")
+	}
+}
+```
+
+`splash.Intro` is the intro's state:
+
+- `Background` is the colour behind the logo: `splash.Light`, which is
+  white and the default, `splash.Dark`, or the app's own colour, so the
+  intro flows into its first screen. The letters are black on a light
+  background and white on a dark one.
+- `Silent` plays the intro without its sound, for an app with its sound
+  turned off. An app with no mixer gets silence too.
+
+`splash.Done` comes once, as the intro starts to fade. `Skipped` says a
+tap, a click, a key or the hidden window cut it short. The intro holds
+the keyboard while it shows, as a dialog does, and gives it back once
+it leaves.
+
+An app that builds its own tree can put a `*splash.Splash` from
+`splash.New` in it and set its `OnDone`. `Splash.Hold` stops it at a
+moment, for pictures.
+
+## Trying it
+
+`cmd/preview` plays the intro over a plain first screen. A tap, a click
+or a key there plays it again.
+
+```sh
+go run ./cmd/preview
+go run ./cmd/preview -background dark -size 390x800
+go run ./cmd/preview -background '#20304a' -loop 1s
+go run ./cmd/preview -silent
+```
+
+`-shot` holds the intro at the moment `-at` and writes the window to a
+PNG file. `-frames` writes the whole intro as PNG files, `-fps` a
+second. The pictures here came from them; a GIF is one ffmpeg command
+away:
+
+```sh
+go run ./cmd/preview -shot intro.png -at 1s
+go run ./cmd/preview -frames /tmp/frames -fps 25 -size 840x400
+ffmpeg -framerate 25 -i /tmp/frames/frame-%03d.png -vf "crop=840:370:0:30,scale=560:-1,split[a][b];[a]palettegen[p];[b][p]paletteuse" intro.gif
+```
+
+On Android, gunim's `gunimapk` builds and starts it:
+
+```sh
+go run github.com/marrasen/gunim/tools/gunimapk -run ./cmd/preview
+```
+
+## Tests
+
+The tests run the intro on gunim's offscreen window and check every
+frame: nothing jumps, nothing pops in or out at once, the logo stays in
+the window, and the letters come in from left to right. They play it
+through at 60 and 144 frames a second in four window sizes, on light and
+dark, and check that 30, 60, 90 and 144 frames a second show the same
+moments. They also skip it in the middle, resize the window in the
+middle, hide the window in the middle, play it in tiny windows, play it
+with the sound off, and check that `Done` comes exactly once.
+
+```sh
+go test ./...
+```
+
+## Licence
+
+The code is under the Apache License 2.0, in `LICENSE`. The Skalarit
+logo, in `logo/` and in the pictures in `docs/`, is © Skalarit AB, all
+rights reserved; see `NOTICE`.

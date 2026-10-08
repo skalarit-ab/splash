@@ -164,10 +164,10 @@ func (lk look) person() map[int]part {
 // look reads what the last frame drew.
 func (s *stage) look() look {
 	s.t.Helper()
-	return lookAt(s.t, s.w.Offscreen().Ops())
+	return lookOf(s.t, s.w.Offscreen().Ops())
 }
 
-func lookAt(t *testing.T, ops []paint.Op) look {
+func lookOf(t *testing.T, ops []paint.Op) look {
 	t.Helper()
 	l, err := theLogo()
 	if err != nil {

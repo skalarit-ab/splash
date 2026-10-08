@@ -71,7 +71,7 @@ func TestTheIntroPlaysThroughSmoothly(t *testing.T) {
 							t.Fatalf("at rest %s is %+v, want %v whole", partName(id), got, r)
 						}
 					}
-					s.run(1250*time.Millisecond, &prev)
+					s.run(1240*time.Millisecond, &prev)
 					seated(t, prev, size, in)
 					s.run(Length+2*s.dt, &prev)
 					if len(s.dones) != 1 || s.dones[0].Skipped {
@@ -126,7 +126,7 @@ func TestHoldShowsTheMomentPlayed(t *testing.T) {
 		}
 		held := New(Intro{}, nil)
 		held.Hold(at)
-		got := lookAt(t, paintOf(held, size))
+		got := lookOf(t, paintOf(held, size))
 		want := played.look()
 		if len(got.parts) != len(want.parts) {
 			t.Fatalf("at %v Hold draws %d parts, and playing %d", at, len(got.parts), len(want.parts))
@@ -152,9 +152,9 @@ func TestASkipFadesAtOnceAndSendsDoneOnce(t *testing.T) {
 	}
 	for name, skip := range skips {
 		// At once, as the diamond pops, as the letters come in, with the
-		// person sat, as the intro fades on its own, and as the person
-		// falls.
-		for _, at := range []time.Duration{0, 50 * time.Millisecond, 380 * time.Millisecond, time.Second, 1350 * time.Millisecond, 1450 * time.Millisecond} {
+		// person sat, as the T goes, as the person looks down, as they
+		// fall, and after Done, as they fade.
+		for _, at := range []time.Duration{0, 50 * time.Millisecond, 380 * time.Millisecond, time.Second, 1350 * time.Millisecond, 1450 * time.Millisecond, 1800 * time.Millisecond, 2100 * time.Millisecond} {
 			t.Run(fmt.Sprintf("%s/%v", name, at), func(t *testing.T) {
 				s := newStage(t, geom.Sz(900, 600), 144, Intro{}, nil)
 				prev := s.look()
@@ -235,7 +235,7 @@ func TestAResizeInTheMiddleCarriesOn(t *testing.T) {
 					t.Fatalf("at rest after the resize %s is at %v, want %v", partName(id), got.rect, r)
 				}
 			}
-			s.run(1250*time.Millisecond, &prev)
+			s.run(1240*time.Millisecond, &prev)
 			seated(t, prev, to, Intro{})
 			s.run(Length+2*s.dt, &prev)
 			if len(s.dones) != 1 || s.dones[0].Skipped || s.doneAts[0]-doneAt > s.dt {
@@ -686,7 +686,10 @@ func seated(t *testing.T, lk look, size geom.Size, in Intro) {
 			}
 			continue
 		}
-		if !near(got.rect, r, 0.5) {
+		// The pop's spring is still settling its last hundredth just
+		// before the T goes, most at the head, farthest from the seat.
+		// The person is 21 of their paths' units high, before personSize.
+		if settling := 0.015 * 21 * personSize * k; !near(got.rect, r, 0.5+settling) {
 			t.Fatalf("%s is at %v, want %v", partName(id), got.rect, r)
 		}
 	}
@@ -719,7 +722,7 @@ func TestThePersonFallsWhenTheTGoes(t *testing.T) {
 			var fellAt time.Duration
 			var fell float32
 			// low and high are how high the left hand goes while the person
-			// sits, from 1.12 s, once their pop has settled.
+			// sits, from 1.1 s, once their pop has settled.
 			low, high := float32(math.Inf(1)), float32(math.Inf(-1))
 			for s.at+s.dt/2 < Length+2*s.dt {
 				s.frame()
@@ -727,7 +730,7 @@ func TestThePersonFallsWhenTheTGoes(t *testing.T) {
 				inside(t, s.at, cur, size)
 				smooth(t, s.at, prev, cur, s.dt, size)
 				prev = cur
-				if hand, ok := cur.parts[personLeftHand]; ok && s.at >= 1120*time.Millisecond && s.at <= 1250*time.Millisecond {
+				if hand, ok := cur.parts[personLeftHand]; ok && s.at >= 1100*time.Millisecond && s.at <= 1240*time.Millisecond {
 					low, high = min(low, hand.rect.Min.Y), max(high, hand.rect.Min.Y)
 				}
 				body, ok := cur.parts[personBody]
@@ -786,15 +789,13 @@ func TestTheBoingPlaysAsThePersonFalls(t *testing.T) {
 	}
 }
 
-// A skip as the person falls fades the boing, and the sting, in 0.2
-// seconds. It is for an app that leaves the intro in after Done: one
-// that unmounts it has the presses from Done on.
+// A skip as the person falls, before Done, fades the boing, and the
+// sting, in 0.2 seconds.
 func TestASkipFadesTheBoing(t *testing.T) {
 	mix := audio.NewMixer()
 	s := newStage(t, geom.Sz(900, 600), 60, Intro{}, mix)
-	s.unmount = false
 	prev := s.look()
-	s.run(1450*time.Millisecond, &prev)
+	s.run(1800*time.Millisecond, &prev)
 	if mix.Playing() != 2 {
 		t.Fatalf("as the person falls the mixer plays %d voices, want the sting and the boing", mix.Playing())
 	}
@@ -879,4 +880,85 @@ func seatNow(t *testing.T, lk look, size geom.Size) float32 {
 	}
 	c := r.Center().Y
 	return c + (want[personBody].Max.Y-c)*grown
+}
+
+// The fall gets room: the T goes and the logo fades before the person
+// drops; they hang a beat, looking down, before they fall; and the fall
+// shows for 0.6 s or more before they fade.
+func TestTheFallHasRoom(t *testing.T) {
+	s := newStage(t, geom.Sz(900, 600), 144, Intro{}, nil)
+	prev := s.look()
+	var tGoneAt, dropAt, dimAt time.Duration
+	var headRest, headLow float32
+	for s.at+s.dt/2 < Length+2*s.dt {
+		s.frame()
+		cur := s.look()
+		smooth(t, s.at, prev, cur, s.dt, s.size)
+		prev = cur
+		if tee, ok := cur.parts[partLetters+letterCount-1]; (!ok || tee.alpha < 0.05) && tGoneAt == 0 && s.at > exitAt {
+			tGoneAt = s.at
+		}
+		head, okH := cur.parts[personHead]
+		body, okB := cur.parts[personBody]
+		if !okH || !okB {
+			continue
+		}
+		// The head's place on the body: it dips as they look down.
+		rel := head.rect.Max.Y - body.rect.Min.Y
+		if s.at < exitAt {
+			headRest = rel
+		} else if dropAt == 0 {
+			headLow = max(headLow, rel-headRest)
+		}
+		if drop := body.rect.Max.Y - seatNow(t, cur, s.size); drop > 1 && dropAt == 0 {
+			dropAt = s.at
+			for id, p := range cur.parts {
+				if id < personBody && p.alpha > 0.05 {
+					t.Fatalf("at %v the person drops with %s still %.2f there", s.at, partName(id), p.alpha)
+				}
+			}
+		}
+		if dropAt != 0 && body.alpha < 0.5 && dimAt == 0 {
+			dimAt = s.at
+		}
+	}
+	if hang := dropAt - tGoneAt; hang < 150*time.Millisecond {
+		t.Fatalf("the T went at %v and the person dropped at %v: a hang of %v, want a clear beat", tGoneAt, dropAt, hang)
+	}
+	l, err := theLogo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	k := logoRect(l.box, geom.Rect{Max: s.size.Point()}).Size().W / l.box.Size().W
+	// A clear dip: one unit of the person's paths or more.
+	if headLow < personSize*k {
+		t.Fatalf("hanging, the head dips %.2f, want them to look down", headLow)
+	}
+	if seen := dimAt - dropAt; seen < 600*time.Millisecond {
+		t.Fatalf("the fall shows from %v to %v, %v, want 0.6 s or more", dropAt, dimAt, seen)
+	}
+}
+
+// An app that unmounts the intro on Done, as an app should, still sees
+// the fall to its end: the leaving intro draws the person until they
+// have faded.
+func TestUnmountedOnDoneTheFallPlaysOut(t *testing.T) {
+	s := newStage(t, geom.Sz(390, 800), 60, Intro{}, nil)
+	prev := s.look()
+	var last time.Duration
+	for s.at+s.dt/2 < Length+4*s.dt {
+		s.frame()
+		cur := s.look()
+		smooth(t, s.at, prev, cur, s.dt, s.size)
+		prev = cur
+		if len(cur.person()) > 0 {
+			last = s.at
+		}
+	}
+	if len(s.doneAts) != 1 {
+		t.Fatalf("the app heard %d Dones, want one", len(s.doneAts))
+	}
+	if last < Length-2*s.dt {
+		t.Fatalf("the app unmounted the intro at %v and the person last showed at %v, want them to %v", s.doneAts[0], last, Length)
+	}
 }

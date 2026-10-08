@@ -15,13 +15,15 @@ from behind it, one to each side, and the glow in the diamond swells
 once and settles. The letters rise into place one after another, from
 left to right. Just after the T, a little person about a letter high
 pops up on top of it, sat at a laptop that glows in the logo's teal,
-typing away. At 1.3
-seconds the intro tells the app it is done and fades away over the
-app's first screen. The T goes first, from under the person, who loses
-their seat and falls with a springy "boioioing", tumbling back, and
-fades last. It is all gone at 1.72 seconds.
+typing away. At 1.25 seconds the T goes from under them, and the rest
+of the logo fades, gone by 1.55 seconds. The person stops typing and
+looks down: uh-oh. At 1.58 seconds they fall with a springy
+"boioioing", tumbling back, for about 0.6 seconds in plain view. Near
+the end of the fall, at 2.13 seconds, the intro tells the app it is
+done, and the person and the background fade away over the app's first
+screen. It is all gone at 2.33 seconds.
 
-![Moments of the intro: at 0.06, 0.15, 0.45, 1.1 and 1.55 seconds](docs/moments.png)
+![Moments of the intro: at 0.06, 0.45, 1.1, 1.5 and 1.95 seconds](docs/moments.png)
 
 The sound follows the logo, in E major. An E major chord, E4, G#4, B4
 and E5 over E3 and B2, starts at the first frame, quietly. It grows
@@ -34,14 +36,13 @@ right as the wedges open, two bells as the glow swells, and a light run
 of plucks up through the chord as the letters rise. As the person
 falls, a boing plays on the frame the fall starts: a twang whose pitch
 bounces up and down 15 times a second as it falls from C#5 to E4, for
-0.34 seconds. The sound peaks at -11 dBFS, and has all faded by 1.72
-seconds, as the intro goes.
+0.6 seconds. The sound peaks at -11 dBFS, and has all faded by 2.18
+seconds, before the intro has gone.
 
 A tap, a click or any key skips the intro. The app hears that it is done
 at once, and the intro, the person and the sound fade out in 0.2
-seconds. From Done on, the app has the taps and keys, and the person's
-fall plays out. The
-window hidden in the middle, as a phone's app sent to the background,
+seconds. From Done on, the app has the taps and keys, and the last
+0.2 seconds of the fade play out. The window hidden in the middle, as a phone's app sent to the background,
 skips it too.
 
 The logo keeps its proportions and sits in the middle of any window: a

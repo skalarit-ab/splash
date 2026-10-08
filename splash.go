@@ -5,12 +5,14 @@
 // open out from behind it to either side. The glow in the diamond
 // swells once and settles, and the letters rise into place one after
 // another, from left to right. Just after the T, a little person pops
-// up on top of it, sat at a laptop, typing. A moment later the intro
-// sends [Done] and fades away over what lies under it. The T goes
-// first, the person loses their seat and falls, tumbling, with a
-// springy boing, and fades last. All of it takes [Length], 1.72
-// seconds. A tap, a click or any key skips it before Done: Done goes at
-// once, and the intro, the person and the sound fade in 0.2 seconds.
+// up on top of it, sat at a laptop, typing. At 1.25 seconds the T goes
+// from under them and the rest of the logo fades. The person stops
+// typing and looks down, then falls, tumbling, with a springy boing.
+// Near the end of the fall, at 2.13 seconds, the intro sends [Done], and
+// the person and the background fade away over what lies under them.
+// All of it takes [Length], 2.33 seconds. A tap, a click or any key
+// skips it before Done: Done goes at once, and the intro, the person
+// and the sound fade in 0.2 seconds.
 //
 // An app shows the intro over its own first screen, which loads behind
 // it meanwhile. It registers the view with the window, mounts its first
@@ -95,13 +97,16 @@ const (
 	// sitAt is when the little person pops in on top of the T, just
 	// after the T has risen into place.
 	sitAt = lettersAt + (letterCount-1)*letterGap + 85*time.Millisecond
-	// doneAt is when the intro sends Done and starts to fade, the T
-	// first.
-	doneAt = 1300 * time.Millisecond
-	// fallAt is when the person, the T gone from under them, falls, and
-	// awayAt when they start to fade.
-	fallAt = doneAt + 80*time.Millisecond
-	awayAt = doneAt + 220*time.Millisecond
+	// exitAt is when the logo starts to leave, the T first, from under
+	// the person. lookAt is when the person, the T gone, stops typing
+	// and looks down: uh-oh. fallAt is when they fall.
+	exitAt = 1250 * time.Millisecond
+	lookAt = exitAt + 150*time.Millisecond
+	fallAt = exitAt + 330*time.Millisecond
+	// doneAt is when the intro sends Done, near the end of the fall, and
+	// the person and the background fade, so the fall plays whole over
+	// the intro's own background in an app that unmounts it on Done.
+	doneAt = fallAt + 550*time.Millisecond
 )
 
 // The motions.
@@ -116,18 +121,23 @@ var (
 	// Each letter rises on letterSpring and fades in on letterFade.
 	letterSpring = anim.Spring{Response: 0.36, Damping: 0.78}
 	letterFade   = anim.Tween{Duration: 180 * time.Millisecond, Ease: anim.EaseOut}
-	// fadeAway fades the intro at its end, and skipFade on a skip.
-	fadeAway = anim.Tween{Duration: 320 * time.Millisecond, Ease: anim.EaseInOut}
+	// fadeAway fades the logo at its end, gone before the person falls,
+	// and skipFade the whole intro on a skip.
+	fadeAway = anim.Tween{Duration: 300 * time.Millisecond, Ease: anim.EaseInOut}
 	skipFade = anim.Tween{Duration: 200 * time.Millisecond, Ease: anim.EaseOut}
 	// sitSpring pops the person in, past their size and back.
 	sitSpring = anim.Spring{Response: 0.38, Damping: 0.5}
 	// tAway takes the T away from under the person at the end, quickly,
 	// so it has all but gone as they fall.
 	tAway = anim.Tween{Duration: 120 * time.Millisecond, Ease: anim.EaseOut}
+	// lookDown dips the person's head as the T goes.
+	lookDown = anim.Spring{Response: 0.3, Damping: 0.6}
 	// fallMotion drops the person, quicker and quicker, as a weight
-	// falls, and personAway fades them.
-	fallMotion = anim.Tween{Duration: 340 * time.Millisecond, Ease: easeIn}
+	// falls; personAway fades them near the end of the fall, and bgAway
+	// the background with them.
+	fallMotion = anim.Tween{Duration: 720 * time.Millisecond, Ease: dropping}
 	personAway = anim.Tween{Duration: 200 * time.Millisecond, Ease: easeIn}
+	bgAway     = anim.Tween{Duration: 200 * time.Millisecond, Ease: anim.EaseInOut}
 	// soundStop is how quickly the sound fades on a skip: as quickly
 	// as the picture.
 	soundStop = 200 * time.Millisecond
@@ -135,11 +145,15 @@ var (
 
 // Length is how long the intro plays when nothing skips it, from its
 // first frame until it has faded away, the falling person last. It
-// sends Done 0.42 seconds before the end.
-const Length = awayAt + 200*time.Millisecond
+// sends Done 0.2 seconds before the end.
+const Length = doneAt + 200*time.Millisecond
 
-// easeIn starts slow and speeds up, as a weight falling does.
+// easeIn starts slow and speeds up.
 func easeIn(t float32) float32 { return t * t }
+
+// dropping is a fall that starts at once, as a cartoon's does after
+// its hang, and speeds up as a weight's does.
+func dropping(t float32) float32 { return t * (0.35 + 0.65*t) }
 
 // How far the parts travel, in the logo's own units, where the logo is
 // 417 wide and 127 high.
@@ -210,12 +224,13 @@ type Splash struct {
 	// rise is how far below its place each letter is, from 1 to 0, and
 	// shown how much it shows.
 	rise, shown [letterCount]*anim.Float
-	// gone is how far the intro has faded away, from 0 to 1, and tGone
-	// how far the T has, which goes first.
-	gone, tGone *anim.Float
-	// sat is how far the person has popped in, from 0 to 1; fall how far
-	// they have fallen, from 0 to 1; and shownPerson how much they show.
-	sat, fall, shownPerson *anim.Float
+	// gone is how far the logo has faded away, from 0 to 1; tGone how far
+	// the T has, which goes first; and bgGone how far the background has.
+	gone, tGone, bgGone *anim.Float
+	// sat is how far the person has popped in, from 0 to 1; looked how
+	// far they look down; fall how far they have fallen, from 0 to 1; and
+	// shownPerson how much they show.
+	sat, looked, fall, shownPerson *anim.Float
 }
 
 // cue starts motions at a moment of the intro, and returns the ones it
@@ -233,10 +248,10 @@ func New(in Intro, mix *audio.Mixer) *Splash {
 		bg:      anim.NewColor(background(in)),
 		diamond: anim.NewFloat(0), glow: anim.NewFloat(glowSmall),
 		open: anim.NewFloat(1), wedges: anim.NewFloat(0),
-		gone: anim.NewFloat(0), tGone: anim.NewFloat(0),
-		sat: anim.NewFloat(0), fall: anim.NewFloat(0), shownPerson: anim.NewFloat(1),
+		gone: anim.NewFloat(0), tGone: anim.NewFloat(0), bgGone: anim.NewFloat(0),
+		sat: anim.NewFloat(0), looked: anim.NewFloat(0), fall: anim.NewFloat(0), shownPerson: anim.NewFloat(1),
 	}
-	s.Add(s.bg, s.diamond, s.glow, s.open, s.wedges, s.gone, s.tGone, s.sat, s.fall, s.shownPerson)
+	s.Add(s.bg, s.diamond, s.glow, s.open, s.wedges, s.gone, s.tGone, s.bgGone, s.sat, s.looked, s.fall, s.shownPerson)
 	for i := range letterCount {
 		s.rise[i], s.shown[i] = anim.NewFloat(1), anim.NewFloat(0)
 		s.Add(s.rise[i], s.shown[i])
@@ -327,16 +342,24 @@ func (s *Splash) choreography() []cue {
 			s.sat.Animate(1, sitSpring)
 			return []*anim.Float{s.sat}
 		}},
-		cue{doneAt, func() []*anim.Float {
+		cue{exitAt, func() []*anim.Float {
 			if s.leaving {
 				return nil
 			}
-			s.leaving, s.ending, s.owed = true, true, true
+			s.leaving, s.ending = true, true
 			s.gone.Animate(1, fadeAway)
 			s.tGone.Animate(1, tAway)
 			return []*anim.Float{s.gone, s.tGone}
 		}},
-		// With the T gone from under them, the person falls, with a boing.
+		// The T gone from under them, the person stops and looks down.
+		cue{lookAt, func() []*anim.Float {
+			if !s.ending {
+				return nil
+			}
+			s.looked.Animate(1, lookDown)
+			return []*anim.Float{s.looked}
+		}},
+		// Then they fall, with a boing.
 		cue{fallAt, func() []*anim.Float {
 			if !s.ending {
 				return nil
@@ -345,12 +368,16 @@ func (s *Splash) choreography() []cue {
 			s.playBoing()
 			return []*anim.Float{s.fall}
 		}},
-		cue{awayAt, func() []*anim.Float {
+		// Near the end of the fall the intro hands over: the person and
+		// the background fade.
+		cue{doneAt, func() []*anim.Float {
 			if !s.ending {
 				return nil
 			}
+			s.owed = true
 			s.shownPerson.Animate(0, personAway)
-			return []*anim.Float{s.shownPerson}
+			s.bgGone.Animate(1, bgAway)
+			return []*anim.Float{s.shownPerson, s.bgGone}
 		}})
 	// advance runs them in the order they come due.
 	slices.SortStableFunc(cues, func(a, b cue) int { return cmp.Compare(a.at, b.at) })
@@ -435,6 +462,8 @@ func (s *Splash) reset() {
 	s.wedges.Jump(0)
 	s.gone.Jump(0)
 	s.tGone.Jump(0)
+	s.bgGone.Jump(0)
+	s.looked.Jump(0)
 	s.sat.Jump(0)
 	s.fall.Jump(0)
 	s.shownPerson.Jump(1)
@@ -450,10 +479,11 @@ func (s *Splash) reset() {
 // fades away quickly with its sound, the person too, falling or not.
 func (s *Splash) Skip(u *gunim.UI) {
 	s.quiet()
-	if !s.leaving {
-		s.leaving = true
-		s.gone.Animate(1, skipFade)
-	}
+	// What the end has started fades on at its own pace; the rest fades
+	// now, and the end's cues to come stay unplayed.
+	s.leaving, s.ending = true, false
+	s.gone.Animate(1, skipFade)
+	s.bgGone.Animate(1, skipFade)
 	s.shownPerson.Animate(0, skipFade)
 	s.owed = false
 	s.finish(true, u)
@@ -494,7 +524,7 @@ func (s *Splash) Transition(p gunim.Presence, _ gunim.Frame) bool {
 	if p != gunim.Exiting {
 		return true
 	}
-	if !s.leaving {
+	if !s.done {
 		s.done = true
 		s.Skip(nil)
 	}
@@ -503,7 +533,12 @@ func (s *Splash) Transition(p gunim.Presence, _ gunim.Frame) bool {
 
 // faded reports whether the intro has faded away, the person too.
 func (s *Splash) faded() bool {
-	return !s.gone.Active() && s.gone.Value() >= 1 && !s.shownPerson.Active() && s.shownPerson.Value() <= 0
+	for _, v := range []*anim.Float{s.gone, s.bgGone, s.shownPerson} {
+		if v.Active() {
+			return false
+		}
+	}
+	return s.gone.Value() >= 1 && s.bgGone.Value() >= 1 && s.shownPerson.Value() <= 0
 }
 
 // Modal implements [gunim.Modal]: the intro holds the keyboard while it
@@ -530,15 +565,14 @@ func (s *Splash) Layout(c gunim.Constraints, f gunim.Frame, _ gunim.Children) ge
 
 // Paint implements [gunim.Node].
 func (s *Splash) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.Children) {
-	gone := s.gone.Value()
-	if s.faded() || gone >= 1 && s.sat.Value() <= 0 {
+	gone, bgGone := s.gone.Value(), s.bgGone.Value()
+	if s.faded() || gone >= 1 && bgGone >= 1 && (s.sat.Value() <= 0 || s.shownPerson.Value() <= 0) {
 		// Faded away: nothing left to draw.
 		return
 	}
 	bg := s.bg.Value()
-	// The background lingers a little behind the logo as both fade, so
-	// the logo leaves first.
-	if a := 1 - anim.EaseInOut(clamp01((gone-0.15)/0.85)); a > 0 {
+	// The background stays while the person falls, and goes with them.
+	if a := 1 - clamp01(bgGone); a > 0 {
 		p.RRect(geom.Rect{Max: box.Point()}, 0, paint.Solid(faded(bg, a)))
 	}
 	l, err := theLogo()
@@ -561,7 +595,7 @@ func (s *Splash) Paint(p *paint.Painter, f gunim.Frame, box geom.Size, _ gunim.C
 	}
 	// The person fades on their own, after the logo, as they fall.
 	if pn, err := thePerson(); err == nil {
-		ps := pose{sat: s.sat.Value(), fall: s.fall.Value(), alpha: clamp01(s.shownPerson.Value())}
+		ps := pose{sat: s.sat.Value(), look: s.looked.Value(), fall: s.fall.Value(), alpha: clamp01(s.shownPerson.Value())}
 		ps.typing = typing(float32(s.clock.Seconds()))
 		pn.paint(p, l.box, r, l.seat, ps, ink)
 	}

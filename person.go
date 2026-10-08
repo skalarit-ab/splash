@@ -63,11 +63,12 @@ var thePerson = sync.OnceValues(func() (*person, error) {
 })
 
 // pose is how the person is at a moment: sat is how far they have
-// popped in, from 0 to 1; fall how far they have fallen, from 0 to 1;
-// alpha how much they show; and typing how far up each hand is.
+// popped in, from 0 to 1; look how far they look down, from 0 to 1, as
+// they stop typing; fall how far they have fallen, from 0 to 1; alpha
+// how much they show; and typing how far up each hand is.
 type pose struct {
-	sat, fall, alpha float32
-	typing           [2]float32
+	sat, look, fall, alpha float32
+	typing                 [2]float32
 }
 
 // personSize scales the person from their paths: 50 of the logo's
@@ -79,12 +80,13 @@ const personSize = 2.4
 
 // How the person falls: fallDrop down and fallDrift across, in the
 // logo's units, turning by fallTurn radians, and with the hands thrown
-// up by fallHands.
+// up by fallHands. lookDip is how far the head dips as they look down.
 const (
-	fallDrop  = 70
-	fallDrift = 12
-	fallTurn  = -1.1
+	fallDrop  = 100
+	fallDrift = 20
+	fallTurn  = -2.6
 	fallHands = 5
+	lookDip   = 1.8
 )
 
 // paint draws the person in the pose ps, seated at seat, where the
@@ -116,15 +118,23 @@ func (pn *person) paint(p *paint.Painter, vb, r geom.Rect, seat geom.Point, ps p
 		Start: faded(lightTeal, a), End: faded(color.NRGBA{R: teal.R, G: teal.G, B: teal.B}, a),
 	}
 	for _, path := range []*shape.Path{pn.body, pn.head} {
+		// Looking down, the head dips toward the screen.
+		pop := func() {}
+		if path == pn.head {
+			pop = p.Push(paint.Translate(geom.Pt(0, ps.look*lookDip*k)))
+		}
 		mask(path, ink)
 		f := path.Fill()
 		p.MaskFill(f, f.In(box, r), paint.Fill{Gradient: &g})
+		pop()
 	}
 	mask(pn.lid, lidBlue)
 	mask(pn.base, teal)
 	mask(pn.mark, paleBlue)
 	for i, hand := range pn.hands {
-		up := ps.typing[i] + ps.fall*fallHands
+		// Looking down, they stop typing; falling, they throw up their
+		// hands.
+		up := ps.typing[i]*(1-clamp01(ps.look)) + ps.fall*fallHands
 		pop := p.Push(paint.Translate(geom.Pt(0, -up*k)))
 		mask(hand, ink)
 		pop()

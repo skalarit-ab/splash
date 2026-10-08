@@ -7,14 +7,16 @@ import (
 	"github.com/marrasen/gunim/audio"
 )
 
-// The sting is made in code, in E major, in step with the logo: a soft
-// pop as the diamond lands, rising into B4, a mallet note from each side
-// as the wedges open, and two bells as the glow swells. Then a quick
-// arpeggio runs up through the chord, left to right with the letters,
-// and lands on the chord as the logo settles, a small lift. It is 1.5
-// seconds long, its last stingFade fading to silence, so it has gone
-// before the intro has. Its loudest moment peaks at stingPeak of full
-// scale.
+// The sting is made in code, in E major, in step with the logo. Under
+// it all an E major chord starts at the first frame, quiet, and grows
+// fuller and brighter as the logo comes together, to its peak as the
+// logo settles, then rings out: a small lift. Over it come the chimes:
+// a soft pop as the diamond lands, rising into B4, a mallet note from
+// each side as the wedges open, two bells as the glow swells, and a
+// light run of plucks up through the chord as the letters rise. It is
+// 1.5 seconds long, its last stingFade fading to silence, so it has
+// gone before the intro has. Its loudest moment peaks at stingPeak of
+// full scale.
 const (
 	stingLength = 1.5
 	stingFade   = 0.35
@@ -34,8 +36,10 @@ const (
 	// letter rises, and arpGap how long after one note the next starts.
 	arpAt  = 0.36
 	arpGap = 0.045
-	// chordAt is when the chord lands, as the last letters settle.
-	chordAt = arpAt + float64(len(arpeggio))*arpGap + 0.03
+	// peakAt is when the chord is at its fullest, as the logo settles;
+	// chordRing is how long it then takes to fall to a third.
+	peakAt    = 0.66
+	chordRing = 0.32
 )
 
 // The notes, in hertz: B4 for the diamond, E5 and G#5 for the wedges,
@@ -48,13 +52,17 @@ const (
 	noteE6  = 1318.51
 	noteE4  = 329.63
 	noteGs4 = 415.30
+	noteE3  = 164.81
+	noteB2  = 123.47
 )
 
-// arpeggio is the run up through E major, E4 to B5; chord is the chord
-// it lands on, E4, G#4, B4 and E5.
+// arpeggio is the run of plucks up through E major, E4 to B5; chord is
+// the chord, E4, G#4, B4 and E5, and low its tones an octave and more
+// below, E3 and B2.
 var (
 	arpeggio = [...]float64{noteE4, noteGs4, noteB4, noteE5, noteGs5, noteB5}
 	chord    = [...]float64{noteE4, noteGs4, noteB4, noteE5}
+	low      = [...]float64{noteE3, noteB2}
 )
 
 var (
@@ -118,20 +126,66 @@ func stingAtTime(t float64) (l, r float64) {
 	// wide.
 	l += 0.22*bell(t, bellsAt, noteB5, 1) + 0.14*bell(t, bellsAt+0.03, noteE6, wide)
 	r += 0.22*bell(t, bellsAt, noteB5, wide) + 0.14*bell(t, bellsAt+0.03, noteE6, 1)
-	// The lift: the arpeggio, from left to right as the letters come
-	// in, and the chord it lands on, wide and in the middle.
+	// The plucks, from left to right as the letters come in.
 	for i, f := range arpeggio {
 		pan := -0.45 + 0.9*float64(i)/float64(len(arpeggio)-1)
-		addPanned(&l, &r, 0.24*pluck(t, arpAt+float64(i)*arpGap, f), pan)
+		addPanned(&l, &r, 0.12*pluck(t, arpAt+float64(i)*arpGap, f), pan)
 	}
+	// The chord, growing from the first frame, wide and in the middle:
+	// each note a hair sharp in one ear and flat in the other. A hair
+	// only: a phone's one speaker adds the ears together, and further
+	// apart they would beat, a note fading out and back as they drift.
 	for i, f := range chord {
-		// Each note a touch sharp in one ear and flat in the other, so the
-		// chord is wide.
-		d := 1 + 0.0012*float64(i%2*2-1)
-		l += 0.21 * swell(t, chordAt, f, d)
-		r += 0.21 * swell(t, chordAt, f, 1/d)
+		d := 1 + chordSpread*float64(i%2*2-1)
+		l += 0.27 * chordTone(t, f, d)
+		r += 0.27 * chordTone(t, f, 1/d)
+	}
+	for i, f := range low {
+		d := 1 + chordSpread*float64(i%2*2-1)
+		l += 0.34 * lowTone(t, f, d)
+		r += 0.34 * lowTone(t, f, 1/d)
 	}
 	return l, r
+}
+
+// chordSpread is how far apart in the two ears the chord's notes are
+// tuned: by the peak, E5's two drift less than a third of a turn apart.
+const chordSpread = 0.0003
+
+// grow is how loud the chord is at time t: a quiet start at the first
+// frame, growing faster and faster to its fullest at peakAt, then
+// ringing out.
+func grow(t float64) float64 {
+	if t < 0 {
+		return 0
+	}
+	if t < peakAt {
+		p := t / peakAt
+		// A 10 ms rise into its first level, so it starts with no click.
+		return min(t/0.01, 1) * (0.2 + 0.8*p*p)
+	}
+	return math.Exp(-(t - peakAt) / chordRing)
+}
+
+// bright is how rich the chord is at time t, from 0 at the first frame
+// to 1 at peakAt: how much of its upper harmonics sound.
+func bright(t float64) float64 { return min(max(t/peakAt, 0), 1) }
+
+// chordTone is a note of the chord at time t, tuned by detune: a warm
+// tone that grows with the chord, its octave and twelfth coming in as
+// it grows richer.
+func chordTone(t, f, detune float64) float64 {
+	w, b := phase(t, 0, f, detune), bright(t)
+	return grow(t) * (math.Sin(w) + (0.08+0.3*b)*math.Sin(2*w) + (0.02+0.1*b)*math.Sin(3*w))
+}
+
+// lowTone is a low tone under the chord at time t, tuned by detune. Its
+// own pitch is soft and its octave strong, so a phone's small speaker,
+// which plays little of the pitch itself, still gives the low tone by
+// its octave. Its double octave comes in as the chord grows richer.
+func lowTone(t, f, detune float64) float64 {
+	w, b := phase(t, 0, f, detune), bright(t)
+	return grow(t) * (0.35*math.Sin(w) + 0.8*math.Sin(2*w) + (0.08+0.2*b)*math.Sin(4*w))
 }
 
 // wide is how far a tone is tuned up in one ear, to sound wide.
@@ -155,20 +209,6 @@ func pluck(t, on, f float64) float64 {
 	w := phase(t, on, f, 1)
 	att := min(u/0.003, 1)
 	return att * (math.Sin(w) + 0.3*math.Sin(2*w)*math.Exp(-u/0.06)) * math.Exp(-u/0.18)
-}
-
-// swell is a note of the chord landing at on, tuned by detune, at time
-// t: a warm tone,
-// a sine with its octave and fifth above, that swells in over 50 ms
-// and dies away over half a second.
-func swell(t, on, f, detune float64) float64 {
-	u := t - on
-	if u < 0 {
-		return 0
-	}
-	w := phase(t, on, f, detune)
-	att := 1 - math.Exp(-u/0.05)
-	return att * (math.Sin(w) + 0.25*math.Sin(2*w) + 0.08*math.Sin(3*w)) * math.Exp(-u/0.45)
 }
 
 // addPanned adds v to l and r, placed at pan, from -1 at the left to 1

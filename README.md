@@ -18,13 +18,17 @@ fades away over the app's first screen. It is gone at 1.62 seconds.
 
 ![Moments of the intro: at 0.06, 0.15, 0.3, 0.45 and 1 second](docs/moments.png)
 
-The sting follows the logo, in E major: a soft pop rising into B4 as the
-diamond lands, a mallet note from the left and one from the right as
-the wedges open, and two bells as the glow swells. Then comes a small
-lift: a quick arpeggio of soft plucks runs up through the chord, E4 to
-B5, from left to right with the letters. It lands on a warm E major
-chord as the logo settles. The sting peaks at -11 dBFS, and has faded
-to silence by 1.4 seconds, before the intro has gone.
+The sound follows the logo, in E major. An E major chord, E4, G#4, B4
+and E5 over E3 and B2, starts at the first frame, quietly. It grows
+louder and brighter as the logo comes together, is fullest as the logo
+settles at 0.66 seconds, and then rings out: a small lift. The low
+tones sound mostly through their octaves, so a phone's small speaker
+still gives them. Chimes play over the chord: a soft pop rising into
+B4 as the diamond lands, a mallet note from the left and one from the
+right as the wedges open, two bells as the glow swells, and a light run
+of plucks up through the chord as the letters rise. The sound peaks at
+-11 dBFS and has faded to silence by 1.4 seconds, before the intro has
+gone.
 
 A tap, a click or any key skips the intro. The app hears that it is done
 at once, and the intro and its sound fade out in 0.2 seconds. The

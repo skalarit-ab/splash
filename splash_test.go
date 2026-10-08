@@ -495,45 +495,96 @@ func TestTheLogoKeepsClearOfThePhonesBars(t *testing.T) {
 	}
 }
 
-// The sting lifts: an arpeggio runs up through E major, each note
-// coming in after the one below it, and lands on the E major chord.
-func TestTheStingLiftsIntoTheChord(t *testing.T) {
+// The chord sounds from the first frame and grows: louder in each tenth
+// of a second up to its peak as the logo settles, then quieter as it
+// rings out. Its low tones, E3 and B2, are measured, as nothing else
+// plays at their pitches.
+func TestTheChordGrowsFromTheStart(t *testing.T) {
+	left := leftOf(stingAt(audio.SampleRate).Samples())
+	at := func(secs float64) int { return int(secs * audio.SampleRate) }
+	lows := func(from, to float64) float64 {
+		var p float64
+		for _, f := range low {
+			p += power(left[at(from):at(to)], f)
+		}
+		return p
+	}
+	// Present at once: from the first frame the low tones stand well
+	// above the notes about them.
+	start := left[at(0):at(0.2)]
+	// A2 and D3, either side of them; the pop, from 0.07 s, spreads a
+	// little over the notes higher up.
+	off := max(power(start, 110), power(start, 146.83))
+	for _, f := range low {
+		if p := power(start, f); p < 20*off {
+			t.Fatalf("at the start the chord's %v Hz is %.3g, too close to the notes about it, at %.3g", f, p, off)
+		}
+	}
+	// Growing to its peak, then ringing out. The tenths are counted from
+	// 0.1 s, past the pop's sharp start at 0.07 s, which spreads over
+	// every pitch for a moment.
+	prev := lows(0.1, 0.2)
+	for from := 0.2; from+0.1 <= peakAt+1e-9; from += 0.1 {
+		cur := lows(from, from+0.1)
+		if cur <= prev {
+			t.Fatalf("the chord grows no louder from %.1f s: %.3g after %.3g", from, cur, prev)
+		}
+		prev = cur
+	}
+	if first, peak := lows(0.1, 0.2), lows(peakAt-0.1, peakAt); peak < 10*first {
+		t.Fatalf("the chord grows only from %.3g to %.3g by its peak", first, peak)
+	}
+	for from := peakAt; from+0.2 <= stingLength; from += 0.2 {
+		if next := lows(from+0.1, from+0.2); next >= lows(from, from+0.1) {
+			t.Fatalf("the chord grows on after its peak, at %.2f s", from+0.1)
+		}
+	}
+}
+
+// The chord is E major, E4, G#4, B4 and E5: its notes stand well above
+// the notes outside it as it peaks.
+func TestTheChordIsEMajor(t *testing.T) {
+	left := leftOf(stingAt(audio.SampleRate).Samples())
+	at := func(secs float64) int { return int(secs * audio.SampleRate) }
+	full := left[at(peakAt-0.15):at(peakAt+0.15)]
+	var off float64
+	for _, f := range []float64{349.23, 392, 440, 523.25, 587.33} { // F4, G4, A4, C5 and D5
+		off = max(off, power(full, f))
+	}
+	for _, f := range chord {
+		if p := power(full, f); p < 20*off {
+			t.Fatalf("the chord's %v Hz is %.3g, too close to the notes outside it, at %.3g", f, p, off)
+		}
+	}
+}
+
+// A phone's small speaker plays little of a low pitch itself, so each
+// low tone sounds mostly through its octave: B2's octave, B3, is louder
+// than B2. (E3's octave is the chord's E4.)
+func TestTheLowTonesCarryOnAPhone(t *testing.T) {
+	left := leftOf(stingAt(audio.SampleRate).Samples())
+	at := func(secs float64) int { return int(secs * audio.SampleRate) }
+	full := left[at(peakAt-0.15):at(peakAt+0.15)]
+	if b2, b3 := power(full, noteB2), power(full, 2*noteB2); b3 < 2*b2 || b2 == 0 {
+		t.Fatalf("B2 is %.3g and its octave %.3g, want the octave the louder and B2 there", b2, b3)
+	}
+}
+
+// Light plucks run up through the chord as the letters rise, each
+// coming in after the one below it.
+func TestThePlucksRise(t *testing.T) {
 	mono := monoOf(stingAt(audio.SampleRate).Samples())
 	at := func(secs float64) int { return int(secs * audio.SampleRate) }
 	for i, f := range arpeggio {
 		if i > 0 && f <= arpeggio[i-1] {
-			t.Fatalf("the arpeggio falls from %v to %v Hz", arpeggio[i-1], f)
+			t.Fatalf("the plucks fall from %v to %v Hz", arpeggio[i-1], f)
 		}
-		// Each note's pitch grows louder as it comes in.
 		on := arpAt + float64(i)*arpGap
 		before := power(mono[at(on-0.04):at(on)], f)
 		after := power(mono[at(on):at(on+0.04)], f)
-		if after < 2*before {
-			t.Fatalf("the arpeggio's %v Hz grows from %.3g to only %.3g as it comes in", f, before, after)
+		if after < 1.5*before {
+			t.Fatalf("the pluck at %v Hz grows from %.3g to only %.3g as it comes in", f, before, after)
 		}
-	}
-	// The chord grows as it lands, and its notes then ring on well above
-	// the notes outside the chord, after the arpeggio has died away.
-	// One ear is measured: each note is a touch apart in the two, so in
-	// mono they beat slowly.
-	left := leftOf(stingAt(audio.SampleRate).Samples())
-	ringing := left[at(chordAt+0.3):at(chordAt+0.6)]
-	var off float64
-	for _, f := range []float64{349.23, 392, 440, 523.25, 587.33} { // F4, G4, A4, C5 and D5
-		off = max(off, power(ringing, f))
-	}
-	var before, after float64
-	for _, f := range chord {
-		before += power(left[at(chordAt-0.1):at(chordAt)], f)
-		after += power(left[at(chordAt+0.05):at(chordAt+0.15)], f)
-		if p := power(ringing, f); p < 20*off {
-			t.Fatalf("the chord's %v Hz rings at %.3g, too close to the notes outside it, at %.3g", f, p, off)
-		}
-	}
-	// The arpeggio's own notes still ring as the chord lands, so the
-	// chord grows by half or more.
-	if after < 1.5*before {
-		t.Fatalf("the chord grows from %.3g to only %.3g as it lands", before, after)
 	}
 }
 

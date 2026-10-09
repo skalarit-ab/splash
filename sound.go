@@ -267,19 +267,19 @@ func bell(t, on, f, detune float64) float64 {
 // seconds long and peaks at boingPeak, as loud as the sting is at its
 // fullest.
 const (
-	boingLength = 0.34
-	boingPeak   = 0.24
+	boingLength = 0.6
+	boingPeak   = 0.21
 	// boingFrom and boingTo are where the pitch falls from and to, in
 	// hertz, over about boingGlide seconds.
 	boingFrom  = 554.37
 	boingTo    = noteE4
-	boingGlide = 0.15
+	boingGlide = 0.3
 	// boingRate is how many times a second the pitch bounces, and
 	// boingDepth how far, as a share of the pitch, at first; the bounce
 	// dies away over about boingSettle seconds.
 	boingRate   = 15
 	boingDepth  = 0.3
-	boingSettle = 0.2
+	boingSettle = 0.35
 )
 
 var boings = map[int]*audio.Clip{}
@@ -308,9 +308,9 @@ func boingSamples(rate int) []float32 {
 		t := float64(i) / hz
 		ph += 2 * math.Pi * boingPitch(t) / hz
 		// A twang: the tone and its next two harmonics, struck quickly and
-		// dying away, the last 40 ms fading to silence.
+		// dying away, the last 60 ms fading to silence.
 		v := math.Sin(ph) + 0.35*math.Sin(2*ph) + 0.12*math.Sin(3*ph)
-		v *= min(t/0.005, 1) * math.Exp(-t/0.16) * min(1, float64(n-i)/(0.04*hz))
+		v *= min(t/0.005, 1) * math.Exp(-t/0.25) * min(1, float64(n-i)/(0.06*hz))
 		s[2*i], s[2*i+1] = float32(v), float32(v)
 		loudest = max(loudest, math.Abs(v))
 	}
